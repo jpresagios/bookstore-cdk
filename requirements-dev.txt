@@ -1,1 +1,4 @@
 pytest==8.4.2
+aws-lambda-powertools[parser]>=3.0.0
+boto3>=1.35.0
+moto[dynamodb]>=5.0.0
