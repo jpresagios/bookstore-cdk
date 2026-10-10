@@ -110,6 +110,29 @@ def test_one_lambda_behind_api_gateway():
         "AWS::ApiGateway::Method",
         {"HttpMethod": "ANY"},
     )
+    template.resource_count_is("AWS::Logs::LogGroup", 1)
+    template.has_resource_properties(
+        "AWS::Logs::LogGroup",
+        {"LogGroupName": "/aws/apigateway/bookstore"},
+    )
+    template.has_resource_properties(
+        "AWS::ApiGateway::Stage",
+        {
+            "AccessLogSetting": assertions.Match.object_like(
+                {"DestinationArn": assertions.Match.any_value()}
+            ),
+            "MethodSettings": assertions.Match.array_with(
+                [
+                    assertions.Match.object_like(
+                        {
+                            "LoggingLevel": "INFO",
+                            "DataTraceEnabled": True,
+                        }
+                    )
+                ]
+            ),
+        },
+    )
 
     template.resource_count_is("AWS::Lambda::LayerVersion", 1)
     template.has_resource_properties(

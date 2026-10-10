@@ -1,3 +1,4 @@
+import json
 import shutil
 import subprocess
 import sys
@@ -9,6 +10,7 @@ from aws_cdk import BundlingOptions, DockerImage, Duration, ILocalBundling, Remo
 from aws_cdk import aws_apigateway as apigateway
 from aws_cdk import aws_dynamodb as dynamodb
 from aws_cdk import aws_lambda as lambda_
+from aws_cdk import aws_logs as logs
 from constructs import Construct
 
 # Free tier is 25 reads and 25 writes per second for the whole account in this
@@ -179,11 +181,39 @@ class BookstoreCdkStack(Stack):
         books.grant_read_write_data(crud)
         presales.grant_read_write_data(crud)
 
+        access_logs = logs.LogGroup(
+            self,
+            "ApiAccessLogs",
+            log_group_name="/aws/apigateway/bookstore",
+            retention=logs.RetentionDays.ONE_WEEK,
+            removal_policy=RemovalPolicy.DESTROY,
+        )
         api = apigateway.RestApi(
             self,
             "BookstoreApi",
             rest_api_name="Bookstore",
             description="Forwards every request to the bookstore CRUD Lambda.",
+            cloud_watch_role=True,
+            cloud_watch_role_removal_policy=RemovalPolicy.DESTROY,
+            deploy_options=apigateway.StageOptions(
+                access_log_destination=apigateway.LogGroupLogDestination(access_logs),
+                access_log_format=apigateway.AccessLogFormat.custom(
+                    json.dumps(
+                        {
+                            "requestId": apigateway.AccessLogField.context_request_id(),
+                            "ip": apigateway.AccessLogField.context_identity_source_ip(),
+                            "method": apigateway.AccessLogField.context_http_method(),
+                            "path": apigateway.AccessLogField.context_path(),
+                            "status": apigateway.AccessLogField.context_status(),
+                            "responseLength": apigateway.AccessLogField.context_response_length(),
+                            "responseLatencyMs": apigateway.AccessLogField.context_response_latency(),
+                            "integrationLatencyMs": apigateway.AccessLogField.context_integration_latency(),
+                        }
+                    )
+                ),
+                logging_level=apigateway.MethodLoggingLevel.INFO,
+                data_trace_enabled=True,
+            ),
         )
         integration = apigateway.LambdaIntegration(crud, proxy=True)
         api.root.add_method("ANY", integration)
