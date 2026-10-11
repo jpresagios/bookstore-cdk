@@ -10,6 +10,51 @@ def _template() -> assertions.Template:
     return assertions.Template.from_stack(stack)
 
 
+def test_bookstore_table_and_indexes():
+    template = _template()
+    template.has_resource_properties(
+        "AWS::DynamoDB::Table",
+        {
+            "TableName": "Bookstore",
+            "ProvisionedThroughput": {"ReadCapacityUnits": 1, "WriteCapacityUnits": 1},
+            "KeySchema": [
+                {"AttributeName": "pk", "KeyType": "HASH"},
+                {"AttributeName": "sk", "KeyType": "RANGE"},
+            ],
+            "GlobalSecondaryIndexes": assertions.Match.array_with(
+                [
+                    assertions.Match.object_like(
+                        {
+                            "IndexName": "byAuthor",
+                            "KeySchema": [
+                                {"AttributeName": "gsi1pk", "KeyType": "HASH"},
+                                {"AttributeName": "gsi1sk", "KeyType": "RANGE"},
+                            ],
+                            "ProvisionedThroughput": {
+                                "ReadCapacityUnits": 1,
+                                "WriteCapacityUnits": 1,
+                            },
+                        }
+                    ),
+                    assertions.Match.object_like(
+                        {
+                            "IndexName": "byAuthorName",
+                            "KeySchema": [
+                                {"AttributeName": "gsi2pk", "KeyType": "HASH"},
+                                {"AttributeName": "gsi2sk", "KeyType": "RANGE"},
+                            ],
+                            "ProvisionedThroughput": {
+                                "ReadCapacityUnits": 1,
+                                "WriteCapacityUnits": 1,
+                            },
+                        }
+                    ),
+                ]
+            ),
+        },
+    )
+
+
 def test_books_table_and_author_indexes():
     template = _template()
     template.has_resource_properties(
@@ -94,8 +139,7 @@ def test_one_lambda_behind_api_gateway():
             "Environment": {
                 "Variables": assertions.Match.object_like(
                         {
-                            "BOOKS_TABLE_NAME": assertions.Match.any_value(),
-                            "PRESALES_TABLE_NAME": assertions.Match.any_value(),
+                                "BOOKSTORE_TABLE_NAME": assertions.Match.any_value(),
                             "POWERTOOLS_SERVICE_NAME": "bookstore",
                         }
                 )

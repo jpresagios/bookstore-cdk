@@ -9,8 +9,7 @@ from bookstore_cdk.crud import handler
 
 @pytest.fixture(autouse=True)
 def _empty_tables():
-    _wipe(repository.books_repository.table, ("id",))
-    _wipe(repository.presales_repository.table, ("userId", "bookId"))
+    _wipe(repository.books_repository.table, ("pk", "sk"))
     yield
 
 
@@ -81,6 +80,13 @@ def test_author_id_keeps_people_with_the_same_name_apart():
     )
     assert first[0] == 201
     assert second[0] == 201
+    stored = repository.books_repository.table.get_item(
+        Key={"pk": f"BOOK#{first[1]['id']}", "sk": f"BOOK#{first[1]['id']}"}
+    )["Item"]
+    assert stored["entity"] == "BOOK"
+    assert stored["gsi1pk"] == "AUTHOR#ana-1"
+    assert stored["gsi1sk"] == "2026-01-01T00:00:00Z"
+    assert stored["gsi2pk"] == "AUTHORNAME#Ana García"
 
     by_name, books = _call("GET", "/books", query={"authorName": "Ana García"})
     assert by_name == 200
@@ -100,6 +106,13 @@ def test_presale_waits_until_the_book_arrives():
     )
     assert created == 201
     assert presale["status"] == "WAITING"
+    stored = repository.presales_repository.table.get_item(
+        Key={"pk": "USER#user-1", "sk": f"BOOK#{book['id']}"}
+    )["Item"]
+    assert stored["entity"] == "PRESALE"
+    assert stored["gsi1pk"] == f"BOOK#{book['id']}"
+    assert stored["gsi1sk"] == "USER#user-1"
+    assert "gsi2pk" not in stored
 
     _, in_store = _call(
         "POST",

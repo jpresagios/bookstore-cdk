@@ -70,6 +70,54 @@ class BookstoreCdkStack(Stack):
     def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
         super().__init__(scope, construct_id, **kwargs)
 
+        bookstore = dynamodb.Table(
+            self,
+            "Bookstore",
+            table_name="Bookstore",
+            partition_key=dynamodb.Attribute(
+                name="pk",
+                type=dynamodb.AttributeType.STRING,
+            ),
+            sort_key=dynamodb.Attribute(
+                name="sk",
+                type=dynamodb.AttributeType.STRING,
+            ),
+            billing_mode=dynamodb.BillingMode.PROVISIONED,
+            read_capacity=FREE_TIER_CAPACITY,
+            write_capacity=FREE_TIER_CAPACITY,
+            removal_policy=RemovalPolicy.DESTROY,
+        )
+        bookstore.add_global_secondary_index(
+            index_name="byAuthor",
+            partition_key=dynamodb.Attribute(
+                name="gsi1pk",
+                type=dynamodb.AttributeType.STRING,
+            ),
+            sort_key=dynamodb.Attribute(
+                name="gsi1sk",
+                type=dynamodb.AttributeType.STRING,
+            ),
+            projection_type=dynamodb.ProjectionType.ALL,
+            read_capacity=FREE_TIER_CAPACITY,
+            write_capacity=FREE_TIER_CAPACITY,
+        )
+        bookstore.add_global_secondary_index(
+            index_name="byAuthorName",
+            partition_key=dynamodb.Attribute(
+                name="gsi2pk",
+                type=dynamodb.AttributeType.STRING,
+            ),
+            sort_key=dynamodb.Attribute(
+                name="gsi2sk",
+                type=dynamodb.AttributeType.STRING,
+            ),
+            projection_type=dynamodb.ProjectionType.ALL,
+            read_capacity=FREE_TIER_CAPACITY,
+            write_capacity=FREE_TIER_CAPACITY,
+        )
+
+        # Books and Presales stay until the migration script has copied them.
+        # Removing these resources deletes the rows already in AWS.
         books = dynamodb.Table(
             self,
             "Books",
@@ -167,19 +215,17 @@ class BookstoreCdkStack(Stack):
             handler="handler.handler",
             code=lambda_.Code.from_asset(
                 str(CRUD_DIR),
-                exclude=["**/__pycache__", "**/*.pyc"],
+                exclude=["**/__pycache__", "**/*.pyc", "migrate.py"],
             ),
             layers=[shared],
             timeout=Duration.seconds(10),
             environment={
-                "BOOKS_TABLE_NAME": books.table_name,
-                "PRESALES_TABLE_NAME": presales.table_name,
+                "BOOKSTORE_TABLE_NAME": bookstore.table_name,
                 "POWERTOOLS_SERVICE_NAME": "bookstore",
             },
-            description="Routes every bookstore request to the Books and Presales tables.",
+            description="Routes every bookstore request to the Bookstore table.",
         )
-        books.grant_read_write_data(crud)
-        presales.grant_read_write_data(crud)
+        bookstore.grant_read_write_data(crud)
 
         access_logs = logs.LogGroup(
             self,

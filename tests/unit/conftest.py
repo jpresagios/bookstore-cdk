@@ -13,8 +13,7 @@ os.environ["AWS_ACCESS_KEY_ID"] = "testing"
 os.environ["AWS_SECRET_ACCESS_KEY"] = "testing"
 os.environ["AWS_DEFAULT_REGION"] = "us-east-1"
 os.environ["AWS_REGION"] = "us-east-1"
-os.environ["BOOKS_TABLE_NAME"] = "Books"
-os.environ["PRESALES_TABLE_NAME"] = "Presales"
+os.environ["BOOKSTORE_TABLE_NAME"] = "Bookstore"
 os.environ["POWERTOOLS_SERVICE_NAME"] = "bookstore"
 os.environ["POWERTOOLS_LOG_LEVEL"] = "ERROR"
 
@@ -29,6 +28,40 @@ from bookstore_cdk.crud import handler  # noqa: E402,F401
 
 def _create_tables() -> None:
     client = boto3.client("dynamodb", region_name="us-east-1")
+    client.create_table(
+        TableName="Bookstore",
+        BillingMode="PAY_PER_REQUEST",
+        AttributeDefinitions=[
+            {"AttributeName": "pk", "AttributeType": "S"},
+            {"AttributeName": "sk", "AttributeType": "S"},
+            {"AttributeName": "gsi1pk", "AttributeType": "S"},
+            {"AttributeName": "gsi1sk", "AttributeType": "S"},
+            {"AttributeName": "gsi2pk", "AttributeType": "S"},
+            {"AttributeName": "gsi2sk", "AttributeType": "S"},
+        ],
+        KeySchema=[
+            {"AttributeName": "pk", "KeyType": "HASH"},
+            {"AttributeName": "sk", "KeyType": "RANGE"},
+        ],
+        GlobalSecondaryIndexes=[
+            {
+                "IndexName": "byAuthor",
+                "KeySchema": [
+                    {"AttributeName": "gsi1pk", "KeyType": "HASH"},
+                    {"AttributeName": "gsi1sk", "KeyType": "RANGE"},
+                ],
+                "Projection": {"ProjectionType": "ALL"},
+            },
+            {
+                "IndexName": "byAuthorName",
+                "KeySchema": [
+                    {"AttributeName": "gsi2pk", "KeyType": "HASH"},
+                    {"AttributeName": "gsi2sk", "KeyType": "RANGE"},
+                ],
+                "Projection": {"ProjectionType": "ALL"},
+            },
+        ],
+    )
     client.create_table(
         TableName="Books",
         BillingMode="PAY_PER_REQUEST",

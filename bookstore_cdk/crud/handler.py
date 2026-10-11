@@ -1,7 +1,7 @@
 """Bookstore CRUD. API Gateway sends every request here.
 
-Powertools picks the function from the path and method. The repositories
-read and write the Books and Presales tables.
+Powertools picks the function from the path and method. Books and
+presales are rows in the Bookstore table.
 """
 
 from http import HTTPStatus
@@ -35,11 +35,11 @@ app = APIGatewayRestResolver(enable_validation=True)
 @app.post("/books", status_code=HTTPStatus.CREATED)
 def create_book(data: BookCreateRequest) -> Book:
     """Create a book. status is PRESALE or IN_STORE."""
-    item = {"id": str(uuid4()), **data.model_dump(by_alias=True)}
+    book_id = str(uuid4())
     try:
-        books_repository.create(item)
+        item = books_repository.create_book(book_id, data.model_dump(by_alias=True))
     except AlreadyExists as exc:
-        raise ServiceError(HTTPStatus.CONFLICT, f"Book {item['id']} already exists") from exc
+        raise ServiceError(HTTPStatus.CONFLICT, f"Book {book_id} already exists") from exc
     logger.info("created book", extra={"bookId": item["id"], "status": item["status"]})
     return Book.model_validate(item)
 
@@ -47,7 +47,7 @@ def create_book(data: BookCreateRequest) -> Book:
 @app.get("/books/<book_id>")
 def get_book(book_id: str) -> Book:
     """Return one book by id."""
-    item = books_repository.get(id=book_id)
+    item = books_repository.get_book(book_id)
     if item is None:
         raise NotFoundError(f"Book {book_id} not found")
     return Book.model_validate(item)
@@ -73,7 +73,7 @@ def update_book(book_id: str, data: BookUpdateRequest) -> Book:
     """Update book fields. Moving status to IN_STORE marks reservations ARRIVED."""
     fields = data.model_dump(by_alias=True, exclude_unset=True)
     try:
-        item = books_repository.update(fields, id=book_id)
+        item = books_repository.update_book(book_id, fields)
     except NotFound as exc:
         raise NotFoundError(f"Book {book_id} not found") from exc
     if item["status"] == "IN_STORE":
@@ -85,7 +85,7 @@ def update_book(book_id: str, data: BookUpdateRequest) -> Book:
 def delete_book(book_id: str):
     """Delete a book."""
     try:
-        books_repository.delete(id=book_id)
+        books_repository.delete_book(book_id)
     except NotFound as exc:
         raise NotFoundError(f"Book {book_id} not found") from exc
     return Response(status_code=HTTPStatus.NO_CONTENT)
@@ -94,14 +94,13 @@ def delete_book(book_id: str):
 @app.post("/presales", status_code=HTTPStatus.CREATED)
 def create_presale(data: PresaleCreateRequest) -> Presale:
     """Reserve a PRESALE book. The reservation starts as WAITING."""
-    book = books_repository.get(id=data.book_id)
+    book = books_repository.get_book(data.book_id)
     if book is None:
         raise NotFoundError(f"Book {data.book_id} not found")
     if book["status"] != "PRESALE":
         raise BadRequestError("A user can reserve a book only while it is PRESALE")
-    item = {**data.model_dump(by_alias=True), "status": "WAITING"}
     try:
-        presales_repository.create(item)
+        item = presales_repository.create_presale(data.user_id, data.book_id)
     except AlreadyExists as exc:
         raise ServiceError(
             HTTPStatus.CONFLICT,
@@ -114,7 +113,7 @@ def create_presale(data: PresaleCreateRequest) -> Presale:
 @app.get("/presales/<user_id>/<book_id>")
 def get_presale(user_id: str, book_id: str) -> Presale:
     """Return one user's reservation for a book."""
-    item = presales_repository.get(userId=user_id, bookId=book_id)
+    item = presales_repository.get_presale(user_id, book_id)
     if item is None:
         raise NotFoundError(f"Presale for user {user_id} and book {book_id} not found")
     return Presale.model_validate(item)
@@ -125,7 +124,7 @@ def list_presales(
     user_id: Annotated[str | None, Query(alias="userId")] = None,
     book_id: Annotated[str | None, Query(alias="bookId")] = None,
 ) -> PresaleList:
-    """List reservations for a userId, or for a bookId via byBook."""
+    """List reservations for a userId, or for a bookId via byAuthor."""
     if bool(user_id) == bool(book_id):
         raise BadRequestError("Pass userId or bookId, not both")
     if user_id:
@@ -140,7 +139,7 @@ def update_presale(user_id: str, book_id: str, data: PresaleUpdateRequest) -> Pr
     """Set a reservation to WAITING or ARRIVED."""
     status = data.model_dump(by_alias=True)["status"]
     try:
-        item = presales_repository.update({"status": status}, userId=user_id, bookId=book_id)
+        item = presales_repository.update_presale(user_id, book_id, status)
     except NotFound as exc:
         raise NotFoundError(f"Presale for user {user_id} and book {book_id} not found") from exc
     return Presale.model_validate(item)
@@ -150,7 +149,7 @@ def update_presale(user_id: str, book_id: str, data: PresaleUpdateRequest) -> Pr
 def delete_presale(user_id: str, book_id: str):
     """Delete one reservation."""
     try:
-        presales_repository.delete(userId=user_id, bookId=book_id)
+        presales_repository.delete_presale(user_id, book_id)
     except NotFound as exc:
         raise NotFoundError(f"Presale for user {user_id} and book {book_id} not found") from exc
     return Response(status_code=HTTPStatus.NO_CONTENT)
