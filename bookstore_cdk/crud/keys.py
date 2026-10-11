@@ -29,17 +29,17 @@ def book_item(book_id: str, fields: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def presale_item(user_id: str, book_id: str, status: str) -> dict[str, Any]:
+def presale_item(user_email: str, book_id: str, status: str) -> dict[str, Any]:
     """Return the Bookstore row for a reservation."""
     return {
-        "pk": f"USER#{user_id}",
+        "pk": f"USER#{user_email}",
         "sk": f"BOOK#{book_id}",
         "entity": "PRESALE",
-        "userId": user_id,
+        "userEmail": user_email,
         "bookId": book_id,
         "status": status,
         "gsi1pk": f"BOOK#{book_id}",
-        "gsi1sk": f"USER#{user_id}",
+        "gsi1sk": f"USER#{user_email}",
     }
 
 
@@ -59,7 +59,7 @@ def public_book(item: dict[str, Any]) -> dict[str, Any]:
 def public_presale(item: dict[str, Any]) -> dict[str, Any]:
     """Return the reservation fields the API exposes."""
     return {
-        "userId": item["userId"],
+        "userEmail": item["userEmail"],
         "bookId": item["bookId"],
         "status": item["status"],
     }

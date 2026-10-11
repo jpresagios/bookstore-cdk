@@ -102,16 +102,17 @@ def test_presale_waits_until_the_book_arrives():
     created, presale = _call(
         "POST",
         "/presales",
-        {"userId": "user-1", "bookId": book["id"]},
+        {"userEmail": "ana@example.com", "bookId": book["id"]},
     )
     assert created == 201
     assert presale["status"] == "WAITING"
     stored = repository.presales_repository.table.get_item(
-        Key={"pk": "USER#user-1", "sk": f"BOOK#{book['id']}"}
+        Key={"pk": "USER#ana@example.com", "sk": f"BOOK#{book['id']}"}
     )["Item"]
     assert stored["entity"] == "PRESALE"
+    assert stored["userEmail"] == "ana@example.com"
     assert stored["gsi1pk"] == f"BOOK#{book['id']}"
-    assert stored["gsi1sk"] == "USER#user-1"
+    assert stored["gsi1sk"] == "USER#ana@example.com"
     assert "gsi2pk" not in stored
 
     _, in_store = _call(
@@ -127,7 +128,7 @@ def test_presale_waits_until_the_book_arrives():
     rejected, error = _call(
         "POST",
         "/presales",
-        {"userId": "user-1", "bookId": in_store["id"]},
+        {"userEmail": "ana@example.com", "bookId": in_store["id"]},
     )
     assert rejected == 400
     assert "PRESALE" in error["message"]
@@ -136,19 +137,19 @@ def test_presale_waits_until_the_book_arrives():
     assert updated == 200
     assert arrived_book["status"] == "IN_STORE"
 
-    status, reservation = _call("GET", f"/presales/user-1/{book['id']}")
+    status, reservation = _call("GET", f"/presales/ana@example.com/{book['id']}")
     assert status == 200
     assert reservation["status"] == "ARRIVED"
 
     listed, who = _call("GET", "/presales", query={"bookId": book["id"]})
     assert listed == 200
-    assert who["items"] == [{"userId": "user-1", "bookId": book["id"], "status": "ARRIVED"}]
+    assert who["items"] == [{"userEmail": "ana@example.com", "bookId": book["id"], "status": "ARRIVED"}]
 
 
 def test_duplicate_reservation_conflicts_and_delete_removes_the_book():
     _, book = _call("POST", "/books", _book(authorId="author-9", title="Once"))
-    assert _call("POST", "/presales", {"userId": "user-9", "bookId": book["id"]})[0] == 201
-    conflict, error = _call("POST", "/presales", {"userId": "user-9", "bookId": book["id"]})
+    assert _call("POST", "/presales", {"userEmail": "ana@example.com", "bookId": book["id"]})[0] == 201
+    conflict, error = _call("POST", "/presales", {"userEmail": "ana@example.com", "bookId": book["id"]})
     assert conflict == 409
     assert "already reserved" in error["message"]
 

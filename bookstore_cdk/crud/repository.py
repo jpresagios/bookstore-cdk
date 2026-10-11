@@ -1,7 +1,7 @@
 """Books and presales on the Bookstore table.
 
 A book is stored at pk = sk = BOOK#<id>. A presale is stored at
-pk = USER#<userId>, sk = BOOK#<bookId>. byAuthor reads gsi1pk.
+pk = USER#<userEmail>, sk = BOOK#<bookId>. byAuthor reads gsi1pk.
 byAuthorName reads gsi2pk.
 """
 
@@ -72,35 +72,35 @@ class BooksRepository(TableRepository):
 class PresalesRepository(TableRepository):
     """Presales inside Bookstore."""
 
-    def create_presale(self, user_id: str, book_id: str) -> dict[str, Any]:
+    def create_presale(self, user_email: str, book_id: str) -> dict[str, Any]:
         """Insert a WAITING reservation and return the API fields."""
-        item = presale_item(user_id, book_id, "WAITING")
+        item = presale_item(user_email, book_id, "WAITING")
         self.create(item)
         return public_presale(item)
 
-    def get_presale(self, user_id: str, book_id: str) -> dict[str, Any] | None:
+    def get_presale(self, user_email: str, book_id: str) -> dict[str, Any] | None:
         """Return one reservation, or None when it is missing."""
-        item = self.get(pk=f"USER#{user_id}", sk=f"BOOK#{book_id}")
+        item = self.get(pk=f"USER#{user_email}", sk=f"BOOK#{book_id}")
         if item is None:
             return None
         return public_presale(item)
 
-    def update_presale(self, user_id: str, book_id: str, status: str) -> dict[str, Any]:
+    def update_presale(self, user_email: str, book_id: str, status: str) -> dict[str, Any]:
         """Set the reservation status."""
         item = self.update(
             {"status": status},
-            pk=f"USER#{user_id}",
+            pk=f"USER#{user_email}",
             sk=f"BOOK#{book_id}",
         )
         return public_presale(item)
 
-    def delete_presale(self, user_id: str, book_id: str) -> None:
+    def delete_presale(self, user_email: str, book_id: str) -> None:
         """Delete one reservation."""
-        self.delete(pk=f"USER#{user_id}", sk=f"BOOK#{book_id}")
+        self.delete(pk=f"USER#{user_email}", sk=f"BOOK#{book_id}")
 
-    def by_user(self, user_id: str) -> list[dict[str, Any]]:
-        """Return the reservations stored under this user."""
-        items = self.search({"pk": f"USER#{user_id}"}, paginate=False)
+    def by_user(self, user_email: str) -> list[dict[str, Any]]:
+        """Return the reservations stored under this email."""
+        items = self.search({"pk": f"USER#{user_email}"}, paginate=False)
         return [public_presale(item) for item in items]
 
     def by_book(self, book_id: str) -> list[dict[str, Any]]:

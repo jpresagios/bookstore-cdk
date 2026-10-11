@@ -10,13 +10,16 @@ from aws_cdk import BundlingOptions, DockerImage, Duration, ILocalBundling, Remo
 from aws_cdk import aws_apigateway as apigateway
 from aws_cdk import aws_dynamodb as dynamodb
 from aws_cdk import aws_lambda as lambda_
+from aws_cdk import aws_lambda_event_sources as eventsources
 from aws_cdk import aws_logs as logs
+from aws_cdk import aws_ses as ses
 from constructs import Construct
 
 # Free tier is 25 reads and 25 writes per second for the whole account in this
 # region, shared by every provisioned table and index. One each stays inside it.
 FREE_TIER_CAPACITY = 1
 CRUD_DIR = Path(__file__).resolve().parent / "crud"
+NOTIFY_DIR = Path(__file__).resolve().parent / "notify"
 LAYER_DIR = Path(__file__).resolve().parent / "layer"
 _layer_bundle: Path | None = None
 
@@ -66,9 +69,99 @@ def _layer_output() -> Path:
     return cache
 
 
+def _notify_functions(stack: Stack, bookstore, shared, identity, notify_email: str) -> None:
+    """Attach the two stream Lambdas that send mail through SES."""
+    environment = {
+        "BOOKSTORE_TABLE_NAME": bookstore.table_name,
+        "NOTIFY_FROM_EMAIL": notify_email,
+        "POWERTOOLS_SERVICE_NAME": "bookstore",
+    }
+    favorite = lambda_.Function(
+        stack,
+        "FavoriteAuthorPresale",
+        runtime=lambda_.Runtime.PYTHON_3_12,
+        architecture=lambda_.Architecture.X86_64,
+        handler="handler.on_favorite_presale",
+        code=lambda_.Code.from_asset(str(NOTIFY_DIR)),
+        layers=[shared],
+        timeout=Duration.seconds(10),
+        environment=environment,
+        description="Emails when a favorite author publishes a presale book.",
+    )
+    arrived = lambda_.Function(
+        stack,
+        "BookArrived",
+        runtime=lambda_.Runtime.PYTHON_3_12,
+        architecture=lambda_.Architecture.X86_64,
+        handler="handler.on_book_arrived",
+        code=lambda_.Code.from_asset(str(NOTIFY_DIR)),
+        layers=[shared],
+        timeout=Duration.seconds(10),
+        environment=environment,
+        description="Emails when a reserved book arrives in the store.",
+    )
+    for function in (favorite, arrived):
+        bookstore.grant_read_data(function)
+        identity.grant_send_email(function)
+    favorite.add_event_source(
+        eventsources.DynamoEventSource(
+            bookstore,
+            starting_position=lambda_.StartingPosition.LATEST,
+            batch_size=1,
+            filters=[
+                lambda_.FilterCriteria.filter(
+                    {
+                        "eventName": lambda_.FilterRule.is_equal("INSERT"),
+                        "dynamodb": {
+                            "NewImage": {
+                                "entity": {"S": lambda_.FilterRule.is_equal("BOOK")},
+                                "status": {"S": lambda_.FilterRule.is_equal("PRESALE")},
+                            }
+                        },
+                    }
+                )
+            ],
+        )
+    )
+    arrived.add_event_source(
+        eventsources.DynamoEventSource(
+            bookstore,
+            starting_position=lambda_.StartingPosition.LATEST,
+            batch_size=1,
+            filters=[
+                lambda_.FilterCriteria.filter(
+                    {
+                        "eventName": lambda_.FilterRule.is_equal("MODIFY"),
+                        "dynamodb": {
+                            "OldImage": {
+                                "status": {"S": lambda_.FilterRule.is_equal("PRESALE")},
+                            },
+                            "NewImage": {
+                                "entity": {"S": lambda_.FilterRule.is_equal("BOOK")},
+                                "status": {"S": lambda_.FilterRule.is_equal("IN_STORE")},
+                            },
+                        },
+                    }
+                )
+            ],
+        )
+    )
+
+
 class BookstoreCdkStack(Stack):
     def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
         super().__init__(scope, construct_id, **kwargs)
+
+        notify_email = self.node.try_get_context("notifyEmail")
+        if not isinstance(notify_email, str) or "@" not in notify_email:
+            raise ValueError(
+                "Pass the verified sender: cdk deploy -c notifyEmail=you@example.com"
+            )
+        identity = ses.EmailIdentity(
+            self,
+            "NotifyIdentity",
+            identity=ses.Identity.email(notify_email),
+        )
 
         bookstore = dynamodb.Table(
             self,
@@ -85,6 +178,7 @@ class BookstoreCdkStack(Stack):
             billing_mode=dynamodb.BillingMode.PROVISIONED,
             read_capacity=FREE_TIER_CAPACITY,
             write_capacity=FREE_TIER_CAPACITY,
+            stream=dynamodb.StreamViewType.NEW_AND_OLD_IMAGES,
             removal_policy=RemovalPolicy.DESTROY,
         )
         bookstore.add_global_secondary_index(
@@ -109,78 +203,6 @@ class BookstoreCdkStack(Stack):
             ),
             sort_key=dynamodb.Attribute(
                 name="gsi2sk",
-                type=dynamodb.AttributeType.STRING,
-            ),
-            projection_type=dynamodb.ProjectionType.ALL,
-            read_capacity=FREE_TIER_CAPACITY,
-            write_capacity=FREE_TIER_CAPACITY,
-        )
-
-        # Books and Presales stay until the migration script has copied them.
-        # Removing these resources deletes the rows already in AWS.
-        books = dynamodb.Table(
-            self,
-            "Books",
-            table_name="Books",
-            partition_key=dynamodb.Attribute(
-                name="id",
-                type=dynamodb.AttributeType.STRING,
-            ),
-            billing_mode=dynamodb.BillingMode.PROVISIONED,
-            read_capacity=FREE_TIER_CAPACITY,
-            write_capacity=FREE_TIER_CAPACITY,
-            removal_policy=RemovalPolicy.DESTROY,
-        )
-        books.add_global_secondary_index(
-            index_name="byAuthor",
-            partition_key=dynamodb.Attribute(
-                name="authorId",
-                type=dynamodb.AttributeType.STRING,
-            ),
-            sort_key=dynamodb.Attribute(
-                name="publishedAt",
-                type=dynamodb.AttributeType.STRING,
-            ),
-            projection_type=dynamodb.ProjectionType.ALL,
-            read_capacity=FREE_TIER_CAPACITY,
-            write_capacity=FREE_TIER_CAPACITY,
-        )
-        books.add_global_secondary_index(
-            index_name="byAuthorName",
-            partition_key=dynamodb.Attribute(
-                name="authorName",
-                type=dynamodb.AttributeType.STRING,
-            ),
-            sort_key=dynamodb.Attribute(
-                name="publishedAt",
-                type=dynamodb.AttributeType.STRING,
-            ),
-            projection_type=dynamodb.ProjectionType.ALL,
-            read_capacity=FREE_TIER_CAPACITY,
-            write_capacity=FREE_TIER_CAPACITY,
-        )
-
-        presales = dynamodb.Table(
-            self,
-            "Presales",
-            table_name="Presales",
-            partition_key=dynamodb.Attribute(
-                name="userId",
-                type=dynamodb.AttributeType.STRING,
-            ),
-            sort_key=dynamodb.Attribute(
-                name="bookId",
-                type=dynamodb.AttributeType.STRING,
-            ),
-            billing_mode=dynamodb.BillingMode.PROVISIONED,
-            read_capacity=FREE_TIER_CAPACITY,
-            write_capacity=FREE_TIER_CAPACITY,
-            removal_policy=RemovalPolicy.DESTROY,
-        )
-        presales.add_global_secondary_index(
-            index_name="byBook",
-            partition_key=dynamodb.Attribute(
-                name="bookId",
                 type=dynamodb.AttributeType.STRING,
             ),
             projection_type=dynamodb.ProjectionType.ALL,
@@ -226,6 +248,7 @@ class BookstoreCdkStack(Stack):
             description="Routes every bookstore request to the Bookstore table.",
         )
         bookstore.grant_read_write_data(crud)
+        _notify_functions(self, bookstore, shared, identity, notify_email)
 
         access_logs = logs.LogGroup(
             self,

@@ -41,6 +41,20 @@ def _text(value: str) -> str:
     return stripped
 
 
+def _email(value: str) -> str:
+    stripped = value.strip().lower()
+    local, separator, domain = stripped.partition("@")
+    if (
+        not separator
+        or not local
+        or "." not in domain
+        or domain.startswith(".")
+        or domain.endswith(".")
+    ):
+        raise ValueError("must be an email address")
+    return stripped
+
+
 def _published_at(value: str) -> str:
     raw = value.strip()
     try:
@@ -126,17 +140,22 @@ class BookList(CamelModel):
 class PresaleCreateRequest(CamelModel):
     """Body for POST /presales."""
 
-    user_id: str
+    user_email: str
     book_id: str
 
-    @field_validator("user_id", "book_id")
+    @field_validator("user_email")
+    @classmethod
+    def normalize_email(cls, value: str) -> str:
+        return _email(value)
+
+    @field_validator("book_id")
     @classmethod
     def strip_text(cls, value: str) -> str:
         return _text(value)
 
 
 class PresaleUpdateRequest(CamelModel):
-    """Body for PUT /presales/{userId}/{bookId}."""
+    """Body for PUT /presales/{userEmail}/{bookId}."""
 
     status: PresaleStatus
 
@@ -144,7 +163,7 @@ class PresaleUpdateRequest(CamelModel):
 class Presale(CamelModel):
     """One user's reservation for a book."""
 
-    user_id: str
+    user_email: str
     book_id: str
     status: PresaleStatus
 

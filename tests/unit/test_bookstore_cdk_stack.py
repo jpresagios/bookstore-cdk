@@ -1,3 +1,4 @@
+import pytest
 import aws_cdk as core
 import aws_cdk.assertions as assertions
 
@@ -5,7 +6,7 @@ from bookstore_cdk.bookstore_cdk_stack import BookstoreCdkStack
 
 
 def _template() -> assertions.Template:
-    app = core.App()
+    app = core.App(context={"notifyEmail": "reader@example.com"})
     stack = BookstoreCdkStack(app, "bookstore-cdk")
     return assertions.Template.from_stack(stack)
 
@@ -21,6 +22,7 @@ def test_bookstore_table_and_indexes():
                 {"AttributeName": "pk", "KeyType": "HASH"},
                 {"AttributeName": "sk", "KeyType": "RANGE"},
             ],
+            "StreamSpecification": {"StreamViewType": "NEW_AND_OLD_IMAGES"},
             "GlobalSecondaryIndexes": assertions.Match.array_with(
                 [
                     assertions.Match.object_like(
@@ -55,80 +57,43 @@ def test_bookstore_table_and_indexes():
     )
 
 
-def test_books_table_and_author_indexes():
+def test_legacy_tables_are_gone():
     template = _template()
-    template.has_resource_properties(
-        "AWS::DynamoDB::Table",
-        {
-            "TableName": "Books",
-            "ProvisionedThroughput": {"ReadCapacityUnits": 1, "WriteCapacityUnits": 1},
-            "KeySchema": [{"AttributeName": "id", "KeyType": "HASH"}],
-            "GlobalSecondaryIndexes": assertions.Match.array_with(
-                [
-                    assertions.Match.object_like(
-                        {
-                            "IndexName": "byAuthor",
-                            "KeySchema": [
-                                {"AttributeName": "authorId", "KeyType": "HASH"},
-                                {"AttributeName": "publishedAt", "KeyType": "RANGE"},
-                            ],
-                            "ProvisionedThroughput": {
-                                "ReadCapacityUnits": 1,
-                                "WriteCapacityUnits": 1,
-                            },
-                        }
-                    ),
-                    assertions.Match.object_like(
-                        {
-                            "IndexName": "byAuthorName",
-                            "KeySchema": [
-                                {"AttributeName": "authorName", "KeyType": "HASH"},
-                                {"AttributeName": "publishedAt", "KeyType": "RANGE"},
-                            ],
-                            "ProvisionedThroughput": {
-                                "ReadCapacityUnits": 1,
-                                "WriteCapacityUnits": 1,
-                            },
-                        }
-                    ),
-                ]
-            ),
-        },
-    )
+    template.resource_count_is("AWS::DynamoDB::Table", 1)
+    names = [
+        resource["Properties"].get("TableName")
+        for resource in template.to_json()["Resources"].values()
+        if resource["Type"] == "AWS::DynamoDB::Table"
+    ]
+    assert names == ["Bookstore"]
 
 
-def test_presales_table_and_by_book_index():
-    template = _template()
-    template.has_resource_properties(
-        "AWS::DynamoDB::Table",
-        {
-            "TableName": "Presales",
-            "ProvisionedThroughput": {"ReadCapacityUnits": 1, "WriteCapacityUnits": 1},
-            "KeySchema": [
-                {"AttributeName": "userId", "KeyType": "HASH"},
-                {"AttributeName": "bookId", "KeyType": "RANGE"},
-            ],
-            "GlobalSecondaryIndexes": assertions.Match.array_with(
-                [
-                    assertions.Match.object_like(
-                        {
-                            "IndexName": "byBook",
-                            "KeySchema": [{"AttributeName": "bookId", "KeyType": "HASH"}],
-                            "ProvisionedThroughput": {
-                                "ReadCapacityUnits": 1,
-                                "WriteCapacityUnits": 1,
-                            },
-                        }
-                    )
-                ]
-            ),
-        },
-    )
+def test_notify_email_is_required():
+    with pytest.raises(ValueError, match="notifyEmail"):
+        BookstoreCdkStack(core.App(), "bookstore-cdk")
 
 
 def test_one_lambda_behind_api_gateway():
     template = _template()
-    template.resource_count_is("AWS::Lambda::Function", 1)
+    template.resource_count_is("AWS::Lambda::Function", 3)
+    template.resource_count_is("AWS::Lambda::EventSourceMapping", 2)
+    template.resource_count_is("AWS::SES::EmailIdentity", 1)
+    template.has_resource_properties(
+        "AWS::SES::EmailIdentity",
+        {"EmailIdentity": "reader@example.com"},
+    )
+    template.has_resource_properties(
+        "AWS::Lambda::Function",
+        {"Handler": "handler.on_favorite_presale"},
+    )
+    template.has_resource_properties(
+        "AWS::Lambda::Function",
+        {"Handler": "handler.on_book_arrived"},
+    )
+    template.has_resource_properties(
+        "AWS::Lambda::EventSourceMapping",
+        {"StartingPosition": "LATEST"},
+    )
     template.resource_count_is("AWS::ApiGateway::RestApi", 1)
     template.resource_count_is("AWS::ApiGateway::Method", 2)
     template.has_resource_properties(
@@ -192,4 +157,4 @@ def test_one_lambda_behind_api_gateway():
         for resource in template.to_json()["Resources"].values()
         if resource["Type"] == "AWS::Lambda::Function"
     ]
-    assert len(functions[0]["Properties"]["Layers"]) == 1
+    assert all(len(function["Properties"]["Layers"]) == 1 for function in functions)
