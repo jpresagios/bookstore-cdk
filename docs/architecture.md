@@ -1,10 +1,8 @@
 # Bookstore
 
-Every request hits API Gateway, and API Gateway forwards all of them to the Crud Lambda. Inside that Lambda, Powertools looks at the path and method and runs the matching CRUD function. boto3 reads and writes DynamoDB.
+Every request hits API Gateway, and API Gateway forwards all of them to one CRUD function. That function reads and writes the Bookstore table.
 
-Changes in `Bookstore` leave through the table stream. One Lambda emails the users who favorited an author when that author publishes a presale. The other emails when a reserved book arrives. See [Notifications](#notifications).
-
-Powertools and `table_repository.py` live in a Lambda layer. AWS mounts that zip at `/opt/python`. The Crud zip only has the routes, the book, presale, and favorite repositories, and the request models. `from table_repository import TableRepository` resolves from the layer.
+Changes in `Bookstore` leave through the table stream. One function emails the users who favorited an author when that author publishes a presale. The other emails when a reserved book arrives. See [Notifications](#notifications).
 
 Books, presales, and favorites share one table, `Bookstore`. A book row, a reservation row, and a favorite row are different items. The key prefix tells them apart.
 
@@ -42,9 +40,19 @@ Books, presales, and favorites share one table, `Bookstore`. A book row, a reser
 | Reservation | `WAITING` | Reserved, still waiting. |
 | Reservation | `ARRIVED` | The book arrived. The arrival Lambda sends the notice. |
 
+## Status changes
+
+![A book moves from PRESALE to IN_STORE, and each WAITING reservation of that book moves to ARRIVED](states.svg)
+
+A `POST /books` starts the book at `PRESALE` or at `IN_STORE`. A user can reserve it only while it is `PRESALE`. That reservation starts at `WAITING`.
+
+The change that links the two rows is putting the book in `IN_STORE`. The CRUD Lambda then sets every `WAITING` reservation of that book to `ARRIVED`, and the stream emails those addresses.
+
+An `INSERT` of a `PRESALE` book does not change a reservation. It emails the users who favorited that author.
+
 ## Notifications
 
-The `Bookstore` stream keeps `NEW_AND_OLD_IMAGES`. Two Lambdas read that stream. Both use the shared layer, read the table, and send mail with Amazon SES. The sender is the verified address passed as `notifyEmail`.
+The `Bookstore` stream carries the row before the change and the row after it. Two functions read that stream and send mail through Amazon SES, from a verified address.
 
 A reservation stores `userEmail`, not a user id. That address is who receives the notice.
 
@@ -54,19 +62,19 @@ The book-arrived Lambda runs on a `MODIFY` that changes a `BOOK` from `PRESALE` 
 
 ## What you can look up
 
-`byAuthor` answers three questions. A search for `AUTHOR#garcia-marquez` returns that author's books. A search for `BOOK#<id>` returns who reserved that book. A search for `FAVORITE#garcia-marquez` returns who favorited that author. The three never mix, because the search text is different. This index replaces `Books.byAuthor` and `Presales.byBook`.
+`byAuthor` answers three questions. A search for `AUTHOR#garcia-marquez` returns that author's books. A search for `BOOK#<id>` returns who reserved that book. A search for `FAVORITE#garcia-marquez` returns who favorited that author. The three never mix, because the search text is different.
 
 | Look up | Where | You ask for | You get |
 |---|---|---|---|
-| One book | `pk`, `sk` | `BOOK#<id>` | That book. Replaces the `Books` table. |
-| One user's reservations | `pk`, `sk` | `USER#<userEmail>` and `sk` `BOOK#...` | That user's reservations. Replaces querying `Presales` by user. |
+| One book | `pk`, `sk` | `BOOK#<id>` | That book. |
+| One user's reservations | `pk`, `sk` | `USER#<userEmail>` and `sk` `BOOK#...` | That user's reservations. |
 | One reservation | `pk`, `sk` | `USER#<userEmail>` and `BOOK#<bookId>` | That user's reservation of that book. |
 | One user's favorites | `pk`, `sk` | `USER#<userEmail>` and `sk` `AUTHOR#...` | The authors that user favorited. |
 | One favorite | `pk`, `sk` | `USER#<userEmail>` and `AUTHOR#<authorId>` | That user's favorite of that author. |
-| Books by this author | `byAuthor` (`gsi1pk`, `gsi1sk`) | `AUTHOR#<authorId>` | That person's books, oldest first. Replaces `Books.byAuthor`. |
-| Who reserved this book | `byAuthor` (`gsi1pk`, `gsi1sk`) | `BOOK#<bookId>` | Those reservations. Replaces `Presales.byBook`. |
+| Books by this author | `byAuthor` (`gsi1pk`, `gsi1sk`) | `AUTHOR#<authorId>` | That person's books, oldest first. |
+| Who reserved this book | `byAuthor` (`gsi1pk`, `gsi1sk`) | `BOOK#<bookId>` | Those reservations. |
 | Who favorited this author | `byAuthor` (`gsi1pk`, `gsi1sk`) | `FAVORITE#<authorId>` | Those users. |
-| Books with this written name | `byAuthorName` (`gsi2pk`, `gsi2sk`) | `AUTHORNAME#<authorName>` | Every book with that name, oldest first. Replaces `Books.byAuthorName`. |
+| Books with this written name | `byAuthorName` (`gsi2pk`, `gsi2sk`) | `AUTHORNAME#<authorName>` | Every book with that name, oldest first. |
 
 A search for "Ana García" returns every book with that printed name, including books from two different people. Search by `AUTHOR#<authorId>` when you already know which person.
 

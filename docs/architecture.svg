@@ -24,10 +24,8 @@
   <line x1="500" y1="202" x2="568" y2="202" stroke="#1e1e1e" stroke-width="2"/>
   <polygon points="568,202 556,196 556,208" fill="#1e1e1e"/>
 
-  <rect x="576" y="108" width="250" height="188" rx="10" fill="#b2f2bb" stroke="#1e1e1e" stroke-width="2"/>
-  <text x="701" y="150" text-anchor="middle" font-family="ui-sans-serif, sans-serif" font-size="18" fill="#1e1e1e">CRUD Lambda</text>
-  <rect x="612" y="176" width="178" height="72" rx="10" fill="#ffffff" stroke="#1e1e1e" stroke-width="2"/>
-  <text x="701" y="218" text-anchor="middle" font-family="ui-sans-serif, sans-serif" font-size="18" fill="#1e1e1e">Powertools</text>
+  <rect x="576" y="156" width="250" height="92" rx="10" fill="#b2f2bb" stroke="#1e1e1e" stroke-width="2"/>
+  <text x="701" y="208" text-anchor="middle" font-family="ui-sans-serif, sans-serif" font-size="18" fill="#1e1e1e">CRUD Lambda</text>
 
   <line x1="826" y1="202" x2="894" y2="202" stroke="#1e1e1e" stroke-width="2"/>
   <polygon points="894,202 882,196 882,208" fill="#1e1e1e"/>
@@ -69,5 +67,5 @@
 
   <rect x="560" y="728" width="300" height="88" rx="10" fill="#ffc9c9" stroke="#1e1e1e" stroke-width="2"/>
   <text x="710" y="762" text-anchor="middle" font-family="ui-sans-serif, sans-serif" font-size="18" fill="#1e1e1e">Amazon SES</text>
-  <text x="710" y="788" text-anchor="middle" font-family="ui-sans-serif, sans-serif" font-size="16" fill="#1e1e1e">notifyEmail</text>
+  <text x="710" y="788" text-anchor="middle" font-family="ui-sans-serif, sans-serif" font-size="16" fill="#1e1e1e">verified address</text>
 </svg>
