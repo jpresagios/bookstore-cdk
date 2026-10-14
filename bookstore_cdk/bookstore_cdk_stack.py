@@ -86,7 +86,7 @@ def _notify_functions(stack: Stack, bookstore, shared, identity, notify_email: s
         layers=[shared],
         timeout=Duration.seconds(10),
         environment=environment,
-        description="Emails when a favorite author publishes a presale book.",
+        description="Emails users who favorited an author when that author publishes a presale.",
     )
     arrived = lambda_.Function(
         stack,

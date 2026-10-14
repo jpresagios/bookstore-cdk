@@ -75,7 +75,6 @@ class BookCreateRequest(CamelModel):
     title: str
     status: BookStatus
     published_at: str
-    is_favorite: bool = False
 
     @field_validator("author_id", "author_name", "title")
     @classmethod
@@ -96,7 +95,6 @@ class BookUpdateRequest(CamelModel):
     title: str | None = None
     status: BookStatus | None = None
     published_at: str | None = None
-    is_favorite: bool | None = None
 
     @field_validator("author_id", "author_name", "title")
     @classmethod
@@ -128,7 +126,6 @@ class Book(CamelModel):
     title: str
     status: BookStatus
     published_at: str
-    is_favorite: bool
 
 
 class BookList(CamelModel):
@@ -172,3 +169,33 @@ class PresaleList(CamelModel):
     """Reservations for a user or for a book."""
 
     items: list[Presale]
+
+
+class FavoriteCreateRequest(CamelModel):
+    """Body for POST /favorites."""
+
+    user_email: str
+    author_id: str
+
+    @field_validator("user_email")
+    @classmethod
+    def normalize_email(cls, value: str) -> str:
+        return _email(value)
+
+    @field_validator("author_id")
+    @classmethod
+    def strip_text(cls, value: str) -> str:
+        return _text(value)
+
+
+class Favorite(CamelModel):
+    """One user favoring one author."""
+
+    user_email: str
+    author_id: str
+
+
+class FavoriteList(CamelModel):
+    """Favorites for a user or for an author."""
+
+    items: list[Favorite]

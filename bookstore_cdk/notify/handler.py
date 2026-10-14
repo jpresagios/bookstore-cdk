@@ -1,8 +1,7 @@
 """Email notices for Bookstore stream records.
 
 on_favorite_presale runs when a PRESALE book is inserted. It emails
-every address that already reserved a book by that author, when the
-author is marked favorite.
+each address that stored a favorite for that author.
 
 on_book_arrived runs when that book moves from PRESALE to IN_STORE.
 It emails each reservation's userEmail.
@@ -28,12 +27,9 @@ def on_favorite_presale(event: dict[str, Any], context: Any) -> None:
     """Email readers when a favorite author publishes a presale book."""
     for record in event["Records"]:
         book = _image(record["dynamodb"]["NewImage"])
-        if not _author_is_favorite(book):
-            logger.info("author is not a favorite", extra={"authorId": book["authorId"]})
-            continue
         emails = _emails_for_author(book["authorId"])
         if not emails:
-            logger.info("favorite author has no reservations", extra={"authorId": book["authorId"]})
+            logger.info("author has no favorites", extra={"authorId": book["authorId"]})
             continue
         for email in emails:
             _send(
@@ -66,34 +62,17 @@ def on_book_arrived(event: dict[str, Any], context: Any) -> None:
             )
 
 
-def _author_is_favorite(book: dict[str, Any]) -> bool:
-    """An author is favorite when any of their books has isFavorite set."""
-    books = _table.search(
-        {"gsi1pk": f"AUTHOR#{book['authorId']}"},
-        index="byAuthor",
-        paginate=False,
-    )
-    return any(item.get("isFavorite") for item in books)
-
-
 def _emails_for_author(author_id: str) -> list[str]:
-    """Return each address that reserved a book by this author."""
+    """Return each address that favorited this author."""
     emails: list[str] = []
-    books = _table.search(
-        {"gsi1pk": f"AUTHOR#{author_id}"},
+    for favorite in _table.search(
+        {"gsi1pk": f"FAVORITE#{author_id}"},
         index="byAuthor",
         paginate=False,
-    )
-    for book in books:
-        book_id = book["pk"].removeprefix("BOOK#")
-        for reservation in _table.search(
-            {"gsi1pk": f"BOOK#{book_id}"},
-            index="byAuthor",
-            paginate=False,
-        ):
-            email = reservation.get("userEmail")
-            if email and email not in emails:
-                emails.append(email)
+    ):
+        email = favorite.get("userEmail")
+        if email and email not in emails:
+            emails.append(email)
     return emails
 
 

@@ -56,6 +56,7 @@ def test_migration_copies_once_and_skips_the_second_run():
     assert book["gsi1pk"] == "AUTHOR#garcia-marquez"
     assert book["gsi2pk"] == "AUTHORNAME#Gabriel García Márquez"
     assert book["title"] == "Cien años de soledad"
+    assert "isFavorite" not in book
 
     reservation = bookstore.get_item(
         Key={

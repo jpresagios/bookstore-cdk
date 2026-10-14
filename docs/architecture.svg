@@ -1,5 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1180" height="780" viewBox="0 0 1180 780" fill="none">
-  <rect width="1180" height="780" fill="#ffffff"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="1180" height="840" viewBox="0 0 1180 840" fill="none">
+  <rect width="1180" height="840" fill="#ffffff"/>
 
   <rect x="36" y="48" width="190" height="64" rx="10" fill="#a5d8ff" stroke="#1e1e1e" stroke-width="2"/>
   <text x="131" y="86" text-anchor="middle" font-family="ui-sans-serif, sans-serif" font-size="18" fill="#1e1e1e">GET /books</text>
@@ -48,22 +48,26 @@
   <line x1="1022" y1="400" x2="977" y2="462" stroke="#1e1e1e" stroke-width="2"/>
   <polygon points="970,472 972,459 982,466" fill="#1e1e1e"/>
 
-  <rect x="300" y="472" width="340" height="124" rx="10" fill="#b2f2bb" stroke="#1e1e1e" stroke-width="2"/>
-  <text x="470" y="514" text-anchor="middle" font-family="ui-sans-serif, sans-serif" font-size="18" fill="#1e1e1e">Favorite presale</text>
-  <rect x="336" y="530" width="268" height="48" rx="10" fill="#ffffff" stroke="#1e1e1e" stroke-width="2"/>
-  <text x="470" y="560" text-anchor="middle" font-family="ui-sans-serif, sans-serif" font-size="16" fill="#1e1e1e">INSERT PRESALE</text>
+  <rect x="280" y="472" width="380" height="172" rx="10" fill="#b2f2bb" stroke="#1e1e1e" stroke-width="2"/>
+  <text x="470" y="508" text-anchor="middle" font-family="ui-sans-serif, sans-serif" font-size="18" fill="#1e1e1e">Favorite presale</text>
+  <rect x="304" y="524" width="332" height="100" rx="10" fill="#ffffff" stroke="#1e1e1e" stroke-width="2"/>
+  <text x="470" y="562" text-anchor="middle" font-family="ui-sans-serif, sans-serif" font-size="14" fill="#1e1e1e">INSERT BOOK PRESALE</text>
+  <text x="470" y="586" text-anchor="middle" font-family="ui-sans-serif, sans-serif" font-size="14" fill="#1e1e1e">user favorited that author</text>
+  <text x="470" y="610" text-anchor="middle" font-family="ui-sans-serif, sans-serif" font-size="14" fill="#1e1e1e">email that user</text>
 
-  <rect x="800" y="472" width="340" height="124" rx="10" fill="#b2f2bb" stroke="#1e1e1e" stroke-width="2"/>
-  <text x="970" y="514" text-anchor="middle" font-family="ui-sans-serif, sans-serif" font-size="18" fill="#1e1e1e">Book arrived</text>
-  <rect x="836" y="530" width="268" height="48" rx="10" fill="#ffffff" stroke="#1e1e1e" stroke-width="2"/>
-  <text x="970" y="560" text-anchor="middle" font-family="ui-sans-serif, sans-serif" font-size="16" fill="#1e1e1e">PRESALE to IN_STORE</text>
+  <rect x="780" y="472" width="380" height="172" rx="10" fill="#b2f2bb" stroke="#1e1e1e" stroke-width="2"/>
+  <text x="970" y="508" text-anchor="middle" font-family="ui-sans-serif, sans-serif" font-size="18" fill="#1e1e1e">Book arrived</text>
+  <rect x="804" y="524" width="332" height="100" rx="10" fill="#ffffff" stroke="#1e1e1e" stroke-width="2"/>
+  <text x="970" y="552" text-anchor="middle" font-family="ui-sans-serif, sans-serif" font-size="14" fill="#1e1e1e">book modified to IN_STORE</text>
+  <text x="970" y="574" text-anchor="middle" font-family="ui-sans-serif, sans-serif" font-size="14" fill="#1e1e1e">presales marked ARRIVED</text>
+  <text x="970" y="596" text-anchor="middle" font-family="ui-sans-serif, sans-serif" font-size="14" fill="#1e1e1e">email those users</text>
 
-  <line x1="470" y1="596" x2="629" y2="645" stroke="#1e1e1e" stroke-width="2"/>
-  <polygon points="640,648 627,650 630,639" fill="#1e1e1e"/>
-  <line x1="970" y1="596" x2="812" y2="645" stroke="#1e1e1e" stroke-width="2"/>
-  <polygon points="800,648 810,639 813,650" fill="#1e1e1e"/>
+  <line x1="470" y1="644" x2="629" y2="716" stroke="#1e1e1e" stroke-width="2"/>
+  <polygon points="640,720 627,721 631,710" fill="#1e1e1e"/>
+  <line x1="970" y1="644" x2="811" y2="716" stroke="#1e1e1e" stroke-width="2"/>
+  <polygon points="800,720 809,710 813,721" fill="#1e1e1e"/>
 
-  <rect x="560" y="648" width="300" height="88" rx="10" fill="#ffc9c9" stroke="#1e1e1e" stroke-width="2"/>
-  <text x="710" y="682" text-anchor="middle" font-family="ui-sans-serif, sans-serif" font-size="18" fill="#1e1e1e">Amazon SES</text>
-  <text x="710" y="708" text-anchor="middle" font-family="ui-sans-serif, sans-serif" font-size="16" fill="#1e1e1e">notifyEmail</text>
+  <rect x="560" y="728" width="300" height="88" rx="10" fill="#ffc9c9" stroke="#1e1e1e" stroke-width="2"/>
+  <text x="710" y="762" text-anchor="middle" font-family="ui-sans-serif, sans-serif" font-size="18" fill="#1e1e1e">Amazon SES</text>
+  <text x="710" y="788" text-anchor="middle" font-family="ui-sans-serif, sans-serif" font-size="16" fill="#1e1e1e">notifyEmail</text>
 </svg>

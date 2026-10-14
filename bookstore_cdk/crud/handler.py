@@ -1,7 +1,7 @@
 """Bookstore CRUD. API Gateway sends every request here.
 
-Powertools picks the function from the path and method. Books and
-presales are rows in the Bookstore table.
+Powertools picks the function from the path and method. Books,
+presales, and favorites are rows in the Bookstore table.
 """
 
 from http import HTTPStatus
@@ -16,12 +16,21 @@ from aws_lambda_powertools.event_handler.exceptions import (
     ServiceError,
 )
 from aws_lambda_powertools.event_handler.openapi.params import Query
-from repository import AlreadyExists, NotFound, books_repository, presales_repository
+from repository import (
+    AlreadyExists,
+    NotFound,
+    books_repository,
+    favorites_repository,
+    presales_repository,
+)
 from schemas import (
     Book,
     BookCreateRequest,
     BookList,
     BookUpdateRequest,
+    Favorite,
+    FavoriteCreateRequest,
+    FavoriteList,
     Presale,
     PresaleCreateRequest,
     PresaleList,
@@ -152,6 +161,59 @@ def delete_presale(user_email: str, book_id: str):
         presales_repository.delete_presale(user_email, book_id)
     except NotFound as exc:
         raise NotFoundError(f"Presale for {user_email} and book {book_id} not found") from exc
+    return Response(status_code=HTTPStatus.NO_CONTENT)
+
+
+@app.post("/favorites", status_code=HTTPStatus.CREATED)
+def create_favorite(data: FavoriteCreateRequest) -> Favorite:
+    """Store that this user favorited this author."""
+    if not books_repository.by_author(data.author_id):
+        raise NotFoundError(f"Author {data.author_id} not found")
+    try:
+        item = favorites_repository.create_favorite(data.user_email, data.author_id)
+    except AlreadyExists as exc:
+        raise ServiceError(
+            HTTPStatus.CONFLICT,
+            f"{data.user_email} already favorited {data.author_id}",
+        ) from exc
+    logger.info(
+        "created favorite",
+        extra={"userEmail": data.user_email, "authorId": data.author_id},
+    )
+    return Favorite.model_validate(item)
+
+
+@app.get("/favorites/<user_email>/<author_id>")
+def get_favorite(user_email: str, author_id: str) -> Favorite:
+    """Return one user's favorite for an author."""
+    item = favorites_repository.get_favorite(user_email, author_id)
+    if item is None:
+        raise NotFoundError(f"Favorite for {user_email} and author {author_id} not found")
+    return Favorite.model_validate(item)
+
+
+@app.get("/favorites")
+def list_favorites(
+    user_email: Annotated[str | None, Query(alias="userEmail")] = None,
+    author_id: Annotated[str | None, Query(alias="authorId")] = None,
+) -> FavoriteList:
+    """List favorites for a userEmail, or for an authorId via byAuthor."""
+    if bool(user_email) == bool(author_id):
+        raise BadRequestError("Pass userEmail or authorId, not both")
+    if user_email:
+        items = favorites_repository.by_user(user_email)
+    else:
+        items = favorites_repository.by_author(author_id or "")
+    return FavoriteList(items=[Favorite.model_validate(item) for item in items])
+
+
+@app.delete("/favorites/<user_email>/<author_id>")
+def delete_favorite(user_email: str, author_id: str):
+    """Delete one user's favorite author."""
+    try:
+        favorites_repository.delete_favorite(user_email, author_id)
+    except NotFound as exc:
+        raise NotFoundError(f"Favorite for {user_email} and author {author_id} not found") from exc
     return Response(status_code=HTTPStatus.NO_CONTENT)
 
 

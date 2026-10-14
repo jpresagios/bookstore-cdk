@@ -65,7 +65,6 @@ def _book(**overrides: Any) -> dict[str, Any]:
         "title": "North Wind",
         "status": "PRESALE",
         "publishedAt": "2026-01-01T00:00:00Z",
-        "isFavorite": False,
     }
     item.update(overrides)
     return item
@@ -144,6 +143,64 @@ def test_presale_waits_until_the_book_arrives():
     listed, who = _call("GET", "/presales", query={"bookId": book["id"]})
     assert listed == 200
     assert who["items"] == [{"userEmail": "ana@example.com", "bookId": book["id"], "status": "ARRIVED"}]
+
+
+def test_a_user_favorites_an_author_without_marking_the_book():
+    _, book = _call("POST", "/books", _book(authorId="garcia-marquez", title="Cien años"))
+    missing_author, missing_error = _call(
+        "POST",
+        "/favorites",
+        {"userEmail": "Ana@Example.com", "authorId": "nobody"},
+    )
+    assert missing_author == 404
+    assert "nobody" in missing_error["message"]
+
+    created, favorite = _call(
+        "POST",
+        "/favorites",
+        {"userEmail": "Ana@Example.com", "authorId": "garcia-marquez"},
+    )
+    assert created == 201
+    assert favorite == {"userEmail": "ana@example.com", "authorId": "garcia-marquez"}
+    stored = repository.favorites_repository.table.get_item(
+        Key={"pk": "USER#ana@example.com", "sk": "AUTHOR#garcia-marquez"}
+    )["Item"]
+    assert stored["entity"] == "FAVORITE"
+    assert stored["gsi1pk"] == "FAVORITE#garcia-marquez"
+    assert stored["gsi1sk"] == "USER#ana@example.com"
+    assert "gsi2pk" not in stored
+    assert "isFavorite" not in repository.books_repository.get_book(book["id"])
+
+    conflict, error = _call(
+        "POST",
+        "/favorites",
+        {"userEmail": "ana@example.com", "authorId": "garcia-marquez"},
+    )
+    assert conflict == 409
+    assert "already favorited" in error["message"]
+
+    _, reservation = _call(
+        "POST",
+        "/presales",
+        {"userEmail": "ana@example.com", "bookId": book["id"]},
+    )
+    assert reservation["status"] == "WAITING"
+    listed_presales, presales = _call("GET", "/presales", query={"userEmail": "ana@example.com"})
+    assert listed_presales == 200
+    assert presales["items"] == [
+        {"userEmail": "ana@example.com", "bookId": book["id"], "status": "WAITING"}
+    ]
+
+    by_user, mine = _call("GET", "/favorites", query={"userEmail": "ana@example.com"})
+    by_author, fans = _call("GET", "/favorites", query={"authorId": "garcia-marquez"})
+    assert by_user == 200
+    assert by_author == 200
+    assert mine["items"] == fans["items"] == [favorite]
+
+    deleted, empty = _call("DELETE", "/favorites/ana@example.com/garcia-marquez")
+    assert deleted == 204
+    assert empty is None
+    assert _call("GET", "/favorites/ana@example.com/garcia-marquez")[0] == 404
 
 
 def test_duplicate_reservation_conflicts_and_delete_removes_the_book():

@@ -6,7 +6,7 @@ from pathlib import Path
 import boto3
 from boto3.dynamodb.types import TypeSerializer
 
-from keys import book_item, presale_item
+from keys import book_item, favorite_item, presale_item
 
 _serializer = TypeSerializer()
 _NOTIFY = Path(__file__).resolve().parents[2] / "bookstore_cdk" / "notify" / "handler.py"
@@ -89,7 +89,6 @@ def test_favorite_author_presale_sends_mail_and_other_authors_do_not():
             "title": "El amor en los tiempos del cólera",
             "status": "IN_STORE",
             "publishedAt": "1985-12-05T00:00:00Z",
-            "isFavorite": True,
         },
     )
     presale = book_item(
@@ -100,7 +99,6 @@ def test_favorite_author_presale_sends_mail_and_other_authors_do_not():
             "title": "Cien años de soledad",
             "status": "PRESALE",
             "publishedAt": "1967-05-30T00:00:00Z",
-            "isFavorite": False,
         },
     )
     other = book_item(
@@ -111,14 +109,13 @@ def test_favorite_author_presale_sends_mail_and_other_authors_do_not():
             "title": "Ficciones",
             "status": "PRESALE",
             "publishedAt": "1944-01-01T00:00:00Z",
-            "isFavorite": False,
         },
     )
     table.put_item(Item=favorite)
     table.put_item(Item=presale)
     table.put_item(Item=other)
-    table.put_item(Item=presale_item("ana@example.com", "book-fav", "WAITING"))
-    table.put_item(Item=presale_item("leo@example.com", "book-other", "WAITING"))
+    table.put_item(Item=favorite_item("ana@example.com", "garcia-marquez"))
+    table.put_item(Item=presale_item("leo@example.com", "book-fav", "WAITING"))
 
     notify.on_favorite_presale(_record(presale), _Context())
     notify.on_favorite_presale(_record(other), _Context())
@@ -140,7 +137,6 @@ def test_arrival_mail_names_the_users_who_reserved_the_book():
             "title": "Ficciones",
             "status": "IN_STORE",
             "publishedAt": "1944-01-01T00:00:00Z",
-            "isFavorite": False,
         },
     )
     table.put_item(Item=book)
@@ -161,7 +157,6 @@ def test_arrival_mail_names_the_users_who_reserved_the_book():
                     "title": "El Aleph",
                     "status": "IN_STORE",
                     "publishedAt": "1949-01-01T00:00:00Z",
-                    "isFavorite": False,
                 },
             )
         ),

@@ -1,17 +1,31 @@
-"""Books and presales on the Bookstore table.
+"""Books, presales, and favorites on the Bookstore table.
 
 A book is stored at pk = sk = BOOK#<id>. A presale is stored at
-pk = USER#<userEmail>, sk = BOOK#<bookId>. byAuthor reads gsi1pk.
+pk = USER#<userEmail>, sk = BOOK#<bookId>. A favorite is stored at
+pk = USER#<userEmail>, sk = AUTHOR#<authorId>. byAuthor reads gsi1pk.
 byAuthorName reads gsi2pk.
 """
 
 from typing import Any
 
 from config import settings
-from keys import book_item, presale_item, public_book, public_presale
+from keys import (
+    book_item,
+    favorite_item,
+    presale_item,
+    public_book,
+    public_favorite,
+    public_presale,
+)
 from table_repository import AlreadyExists, NotFound, TableRepository
 
-__all__ = ["AlreadyExists", "NotFound", "books_repository", "presales_repository"]
+__all__ = [
+    "AlreadyExists",
+    "NotFound",
+    "books_repository",
+    "favorites_repository",
+    "presales_repository",
+]
 
 
 class BooksRepository(TableRepository):
@@ -101,7 +115,7 @@ class PresalesRepository(TableRepository):
     def by_user(self, user_email: str) -> list[dict[str, Any]]:
         """Return the reservations stored under this email."""
         items = self.search({"pk": f"USER#{user_email}"}, paginate=False)
-        return [public_presale(item) for item in items]
+        return [public_presale(item) for item in items if item.get("entity") == "PRESALE"]
 
     def by_book(self, book_id: str) -> list[dict[str, Any]]:
         """Return who reserved this book, via byAuthor."""
@@ -128,12 +142,52 @@ class PresalesRepository(TableRepository):
             )
 
 
+class FavoritesRepository(TableRepository):
+    """Favorites inside Bookstore."""
+
+    def create_favorite(self, user_email: str, author_id: str) -> dict[str, Any]:
+        """Insert one user's favorite author and return the API fields."""
+        item = favorite_item(user_email, author_id)
+        self.create(item)
+        return public_favorite(item)
+
+    def get_favorite(self, user_email: str, author_id: str) -> dict[str, Any] | None:
+        """Return one favorite, or None when it is missing."""
+        item = self.get(pk=f"USER#{user_email}", sk=f"AUTHOR#{author_id}")
+        if item is None:
+            return None
+        return public_favorite(item)
+
+    def delete_favorite(self, user_email: str, author_id: str) -> None:
+        """Delete one user's favorite author."""
+        self.delete(pk=f"USER#{user_email}", sk=f"AUTHOR#{author_id}")
+
+    def by_user(self, user_email: str) -> list[dict[str, Any]]:
+        """Return the authors this user favorited."""
+        items = self.search({"pk": f"USER#{user_email}"}, paginate=False)
+        return [public_favorite(item) for item in items if item.get("entity") == "FAVORITE"]
+
+    def by_author(self, author_id: str) -> list[dict[str, Any]]:
+        """Return who favorited this author, via byAuthor."""
+        items = self.search(
+            {"gsi1pk": f"FAVORITE#{author_id}"},
+            index="byAuthor",
+            paginate=False,
+        )
+        return [public_favorite(item) for item in items]
+
+
 books_repository = BooksRepository(
     table_name=settings.BOOKSTORE_TABLE_NAME,
     pk_attr="pk",
 )
 
 presales_repository = PresalesRepository(
+    table_name=settings.BOOKSTORE_TABLE_NAME,
+    pk_attr="pk",
+)
+
+favorites_repository = FavoritesRepository(
     table_name=settings.BOOKSTORE_TABLE_NAME,
     pk_attr="pk",
 )
