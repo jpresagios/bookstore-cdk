@@ -2,13 +2,13 @@
 
 Every request hits API Gateway, and API Gateway forwards all of them to the Crud Lambda. Inside that Lambda, Powertools looks at the path and method and runs the matching CRUD function. boto3 reads and writes DynamoDB.
 
-Changes in `Bookstore` also reach two notification Lambdas through the table stream. See [Notifications](#notifications).
+Changes in `Bookstore` leave through the table stream. One Lambda emails when a favorite author publishes a presale. The other emails when a reserved book arrives. See [Notifications](#notifications).
 
 Powertools and `table_repository.py` live in a Lambda layer. AWS mounts that zip at `/opt/python`. The Crud zip only has the routes, the book and presale repositories, and the request models. `from table_repository import TableRepository` resolves from the layer.
 
 Books and presales share one table, `Bookstore`. A book row and a reservation row are different items. The key prefix tells them apart.
 
-![Requests go through API Gateway into one CRUD Lambda, then into the DynamoDB table Bookstore](architecture.svg)
+![Requests go through API Gateway into the CRUD Lambda and the Bookstore table. The table stream then reaches two Lambdas that send mail through SES](architecture.svg)
 
 ## Columns
 
@@ -45,11 +45,13 @@ Books and presales share one table, `Bookstore`. A book row and a reservation ro
 
 ## Notifications
 
-A reservation stores `userEmail`, not a user id. That address is who receives the notice. Amazon SES sends from the verified address passed as `notifyEmail`.
+The `Bookstore` stream keeps `NEW_AND_OLD_IMAGES`. Two Lambdas read that stream. Both use the shared layer, read the table, and send mail with Amazon SES. The sender is the verified address passed as `notifyEmail`.
 
-When a favorite author publishes a book in `PRESALE`, the email goes to each address that already has a reservation for another book by that author.
+A reservation stores `userEmail`, not a user id. That address is who receives the notice.
 
-When a book changes to `IN_STORE`, the CRUD Lambda sets every reservation for that book to `ARRIVED`. The stream Lambda then emails each of those `userEmail` addresses.
+The favorite-presale Lambda runs on an `INSERT` of a `BOOK` whose status is `PRESALE`. An author is a favorite when any book by that person has `isFavorite` set. The email goes to each address that already has a reservation for a book by that author.
+
+The book-arrived Lambda runs on a `MODIFY` that changes a `BOOK` from `PRESALE` to `IN_STORE`. The CRUD Lambda sets every reservation for that book to `ARRIVED`. This Lambda then emails each of those `userEmail` addresses.
 
 ## What you can look up
 
